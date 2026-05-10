@@ -164,7 +164,7 @@ async def _ensure_playwright():
 
     launch_args = [
         "--disable-blink-features=AutomationControlled",
-        "--disable-features=IsolateOrigins,site-per-process",
+        "--disable-features=IsolateOrigins,site-per-process,UserAgentClientHint",
         "--disable-site-isolation-trials",
         "--disable-web-security",
         "--no-first-run",

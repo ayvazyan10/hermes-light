@@ -354,6 +354,59 @@ if (navigator.connection) {
 }
 """)
 
+    # 13. Client Hints (navigator.userAgentData) spoofing
+    # Patches sec-ch-ua at the JS level to match the spoofed user agent
+    chrome_version = "125"
+    for part in fp.user_agent.split("Chrome/"):
+        if len(part) > 1 and part[0].isdigit():
+            chrome_version = part.split(".")[0]
+            break
+
+    if "Chrome" in fp.user_agent:
+        brand = f'"Chromium";v="{chrome_version}", "Google Chrome";v="{chrome_version}", "Not-A.Brand";v="99"'
+        brands_json = f'[{{"brand":"Chromium","version":"{chrome_version}"}},{{"brand":"Google Chrome","version":"{chrome_version}"}},{{"brand":"Not-A.Brand","version":"99"}}]'
+    else:
+        brand = f'"Not-A.Brand";v="99", "Chromium";v="{chrome_version}"'
+        brands_json = f'[{{"brand":"Not-A.Brand","version":"99"}},{{"brand":"Chromium","version":"{chrome_version}"}}]'
+
+    platform_name = "Windows" if fp.platform == "Win32" else ("macOS" if fp.platform == "MacIntel" else "Linux")
+
+    scripts.append(f"""
+(function() {{
+    const brands = {brands_json};
+    const platform = {json.dumps(platform_name)};
+    const mobile = false;
+    const ua = {json.dumps(fp.user_agent)};
+
+    const userAgentData = {{
+        brands: brands,
+        mobile: mobile,
+        platform: platform,
+        getHighEntropyValues: function(hints) {{
+            return Promise.resolve({{
+                brands: brands,
+                mobile: mobile,
+                platform: platform,
+                platformVersion: "15.0.0",
+                architecture: "x86",
+                bitness: "64",
+                model: "",
+                uaFullVersion: "{chrome_version}.0.0.0",
+                fullVersionList: brands,
+            }});
+        }},
+        toJSON: function() {{
+            return {{ brands: brands, mobile: mobile, platform: platform }};
+        }}
+    }};
+
+    Object.defineProperty(navigator, 'userAgentData', {{
+        get: () => userAgentData,
+        configurable: true
+    }});
+}})();
+""")
+
     return scripts
 
 
@@ -365,6 +418,17 @@ def get_stealth_init_script(fp: BrowserFingerprint) -> str:
 
 def get_context_options(fp: BrowserFingerprint) -> dict:
     """Return Playwright browser context options matching the fingerprint."""
+    # Derive Chrome version from user agent
+    chrome_version = "125"
+    if "Chrome/" in fp.user_agent:
+        after = fp.user_agent.split("Chrome/")[1]
+        chrome_version = after.split(".")[0]
+
+    platform_name = "Windows" if fp.platform == "Win32" else ("macOS" if fp.platform == "MacIntel" else "Linux")
+
+    # Build sec-ch-ua to match the spoofed UA (overrides Chromium's default)
+    sec_ch_ua = f'"Chromium";v="{chrome_version}", "Google Chrome";v="{chrome_version}", "Not-A.Brand";v="99"'
+
     return {
         "user_agent": fp.user_agent,
         "viewport": {"width": min(fp.screen_width, 1920), "height": min(fp.screen_height - 140, 1080)},
@@ -380,6 +444,8 @@ def get_context_options(fp: BrowserFingerprint) -> dict:
         "ignore_https_errors": True,
         "extra_http_headers": {
             "Accept-Language": ", ".join(fp.languages) + ";q=0.9",
-            "sec-ch-ua-platform": f'"{fp.platform}"' if fp.platform == "Win32" else f'"{"macOS" if fp.platform == "MacIntel" else "Linux"}"',
+            "sec-ch-ua": sec_ch_ua,
+            "sec-ch-ua-mobile": "?0",
+            "sec-ch-ua-platform": f'"{platform_name}"',
         },
     }
