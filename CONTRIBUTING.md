@@ -76,8 +76,12 @@ uv pip install -e ".[all,dev]"
 # Optional: RL training submodule
 # git submodule update --init tinker-atropos && uv pip install -e "./tinker-atropos"
 
-# Optional: browser tools
+# Optional: browser tools (agent-browser CLI backend)
 npm install
+
+# Optional: Playwright direct engine (stealth + human-like behavior)
+uv pip install -e ".[playwright]"
+playwright install chromium
 ```
 
 ### Configure for development

@@ -97,6 +97,14 @@ try:
 except ImportError:
     _is_camofox_mode = lambda: False  # noqa: E731
 
+# Playwright direct engine (optional).
+# When browser.engine is "playwright", all operations route through the
+# native Playwright Python API with full stealth and human-like behavior.
+try:
+    from tools.browser_playwright import is_playwright_mode as _is_playwright_mode
+except ImportError:
+    _is_playwright_mode = lambda: False  # noqa: E731
+
 logger = logging.getLogger(__name__)
 
 # Standard PATH entries for environments with minimal PATH (e.g. systemd services).
@@ -2194,6 +2202,11 @@ def browser_navigate(url: str, task_id: Optional[str] = None) -> str:
         from tools.browser_camofox import camofox_navigate
         return camofox_navigate(url, task_id)
 
+    # Playwright direct engine — full stealth + human-like behavior
+    if _is_playwright_mode():
+        from tools.browser_playwright import navigate as _pw_navigate
+        return _pw_navigate(url, task_id or "default")
+
     if auto_local_this_nav:
         logger.info(
             "browser_navigate: auto-routing %s to local Chromium sidecar "
@@ -2340,6 +2353,10 @@ def browser_snapshot(
         from tools.browser_camofox import camofox_snapshot
         return camofox_snapshot(full, task_id, user_task)
 
+    if _is_playwright_mode():
+        from tools.browser_playwright import snapshot as _pw_snapshot
+        return _pw_snapshot(task_id or "default", full)
+
     effective_task_id = _last_session_key(task_id or "default")
 
     # Build command args based on full flag
@@ -2404,6 +2421,10 @@ def browser_click(ref: str, task_id: Optional[str] = None) -> str:
         from tools.browser_camofox import camofox_click
         return camofox_click(ref, task_id)
 
+    if _is_playwright_mode():
+        from tools.browser_playwright import click as _pw_click
+        return _pw_click(ref, task_id or "default")
+
     effective_task_id = _last_session_key(task_id or "default")
 
     # Ensure ref starts with @
@@ -2441,6 +2462,10 @@ def browser_type(ref: str, text: str, task_id: Optional[str] = None) -> str:
     if _is_camofox_mode():
         from tools.browser_camofox import camofox_type
         return camofox_type(ref, text, task_id)
+
+    if _is_playwright_mode():
+        from tools.browser_playwright import type_text as _pw_type
+        return _pw_type(ref, text, task_id or "default")
 
     effective_task_id = _last_session_key(task_id or "default")
 
@@ -2498,6 +2523,10 @@ def browser_scroll(direction: str, task_id: Optional[str] = None) -> str:
             result = camofox_scroll(direction, task_id)
         return result
 
+    if _is_playwright_mode():
+        from tools.browser_playwright import scroll as _pw_scroll
+        return _pw_scroll(direction, task_id or "default")
+
     effective_task_id = _last_session_key(task_id or "default")
 
     result = _run_browser_command(effective_task_id, "scroll", [direction, str(_SCROLL_PIXELS)])
@@ -2528,6 +2557,10 @@ def browser_back(task_id: Optional[str] = None) -> str:
     if _is_camofox_mode():
         from tools.browser_camofox import camofox_back
         return camofox_back(task_id)
+
+    if _is_playwright_mode():
+        from tools.browser_playwright import back as _pw_back
+        return _pw_back(task_id or "default")
 
     effective_task_id = _last_session_key(task_id or "default")
     result = _run_browser_command(effective_task_id, "back", [])
@@ -2561,6 +2594,10 @@ def browser_press(key: str, task_id: Optional[str] = None) -> str:
     if _is_camofox_mode():
         from tools.browser_camofox import camofox_press
         return camofox_press(key, task_id)
+
+    if _is_playwright_mode():
+        from tools.browser_playwright import press as _pw_press
+        return _pw_press(key, task_id or "default")
 
     effective_task_id = _last_session_key(task_id or "default")
     result = _run_browser_command(effective_task_id, "press", [key])
@@ -3393,6 +3430,14 @@ def check_browser_requirements() -> bool:
     # Camofox backend — only needs the server URL, no agent-browser CLI
     if _is_camofox_mode():
         return True
+
+    # Playwright direct engine — needs playwright package, no agent-browser CLI
+    if _is_playwright_mode():
+        try:
+            import playwright  # noqa: F401
+            return True
+        except ImportError:
+            return False
 
     # CDP override mode can connect to an existing remote/local browser endpoint
     # without requiring the local agent-browser binary on PATH.

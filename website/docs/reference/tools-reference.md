@@ -16,6 +16,8 @@ In addition to built-in tools, Hermes can load tools dynamically from MCP server
 
 ## `browser` toolset
 
+All browser tools work across all backends (agent-browser CLI, Playwright direct engine, Browserbase, Browser Use, Camofox). When the Playwright engine is active (`browser.engine: playwright`), interactions include stealth patches and human-like behavior automatically.
+
 | Tool | Description | Requires environment |
 |------|-------------|----------------------|
 | `browser_back` | Navigate back to the previous page in browser history. Requires browser_navigate to be called first. | — |

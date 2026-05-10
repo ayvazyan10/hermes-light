@@ -9,6 +9,7 @@ sidebar_position: 5
 
 Hermes Agent includes a full browser automation toolset with multiple backend options:
 
+- **Playwright direct engine** — native Python Playwright with full stealth (12 anti-detection patches), human-like behavior (Bezier mouse, realistic typing), and persistent sessions. Recommended for anti-detection use cases.
 - **Browserbase cloud mode** via [Browserbase](https://browserbase.com) for managed cloud browsers and anti-bot tooling
 - **Browser Use cloud mode** via [Browser Use](https://browser-use.com) as an alternative cloud browser provider
 - **Firecrawl cloud mode** via [Firecrawl](https://firecrawl.dev) for cloud browsers with built-in scraping
@@ -238,6 +239,103 @@ Hermes derives the stable `userId` from the profile-scoped directory `~/.hermes/
 #### VNC live view
 
 When Camofox runs in headed mode (with a visible browser window), it exposes a VNC port in its health check response. Hermes automatically discovers this and includes the VNC URL in navigation responses, so the agent can share a link for you to watch the browser live.
+
+### Playwright Direct Engine (stealth + human-like behavior)
+
+The Playwright engine replaces the `agent-browser` CLI with a direct Python Playwright integration, providing maximum anti-detection and human-like browsing capabilities. It is the recommended choice for tasks where bot detection is a concern.
+
+#### Setup
+
+```bash
+# Install the playwright optional dependency
+pip install "hermes-agent[playwright]"
+
+# Install Chromium browser
+playwright install chromium
+
+# Install system dependencies (Ubuntu/Debian)
+playwright install-deps chromium
+```
+
+Then set the engine in `~/.hermes/config.yaml`:
+
+```yaml
+browser:
+  engine: playwright
+  playwright:
+    headless: true
+    stealth_level: maximum      # minimum | standard | maximum
+    humanize: true
+    humanize_profile: default   # default | fast | careful
+    warmup_enabled: true
+    warmup_urls:
+      - https://www.google.com
+      - https://en.wikipedia.org
+    persist_sessions: true
+    proxy: null                 # "socks5://user:pass@host:port"
+    block_resources: []         # ["font", "media"] to speed up loading
+    browser_type: chromium      # chromium | firefox | webkit
+```
+
+Or activate via environment variable: `BROWSER_ENGINE=playwright`.
+
+#### Anti-Detection Features (Stealth)
+
+The Playwright engine applies 12 stealth patches automatically when `stealth_level` is set to `standard` or `maximum`:
+
+| Patch | Description |
+|-------|-------------|
+| **Navigator webdriver** | Removes `navigator.webdriver` detection flag |
+| **Navigator properties** | Spoofs platform, vendor, hardwareConcurrency, deviceMemory, languages |
+| **Chrome runtime** | Injects realistic `window.chrome` object with `runtime`, `loadTimes`, `csi` |
+| **WebGL fingerprint** | Spoofs `UNMASKED_VENDOR_WEBGL` and `UNMASKED_RENDERER_WEBGL` |
+| **Canvas fingerprint** | Injects per-session noise into `toDataURL` and `toBlob` |
+| **Plugins/MimeTypes** | Spoofs `navigator.plugins` and `navigator.mimeTypes` arrays |
+| **Permissions API** | Patches `navigator.permissions.query` for consistent responses |
+| **WebRTC IP leak** | Blocks WebRTC local IP enumeration |
+| **Screen dimensions** | Overrides `screen.width/height/availWidth/availHeight` |
+| **iframe consistency** | Patches `contentWindow.navigator.webdriver` in iframes |
+| **Headless markers** | Removes `__playwright`, `__pw_manual`, patches `document.visibilityState` |
+| **Connection API** | Spoofs `navigator.connection` properties (rtt, downlink, effectiveType) |
+
+Each session gets a consistent fingerprint (generated from a seed), so the same profile always presents the same browser identity.
+
+#### Human-Like Behavior
+
+When `humanize` is enabled, all browser interactions simulate realistic human patterns:
+
+- **Mouse movements**: Bezier curve trajectories with overshoot/correction, variable speed (slower near target)
+- **Typing**: WPM-based rhythm with occasional typos and corrections, variable inter-key delays, pauses at punctuation
+- **Scrolling**: Organic momentum with variable chunk sizes, not uniform pixel jumps
+- **Action delays**: Random pre-action hesitation, post-click settle time
+- **Page dwell**: Simulated reading time with micro-movements and idle scrolls
+
+Three built-in profiles control the behavior speed:
+
+| Profile | Typing WPM | Mouse Speed | Use Case |
+|---------|-----------|-------------|----------|
+| `default` | 65 | 1.0x | General browsing |
+| `fast` | 90 | 1.5x | Speed-focused tasks |
+| `careful` | 40 | 0.7x | Stealth-critical sites |
+
+#### Persistent Sessions
+
+When `persist_sessions` is enabled, the engine saves cookies and localStorage between sessions. Login states survive agent restarts. Profiles are stored in `~/.hermes/browser_profiles/`.
+
+The profile manager supports:
+- **Session warmup**: Visits a few common sites before the actual task to build browsing history
+- **Profile rotation**: Different task IDs get isolated profiles
+- **Cookie inheritance**: Cookies persist across agent restarts
+
+#### Proxy Support
+
+```yaml
+browser:
+  playwright:
+    proxy: "socks5://user:pass@proxy-host:1080"
+```
+
+Or via environment variable: `PLAYWRIGHT_PROXY=socks5://user:pass@host:port`.
 
 ### Local Chrome via CDP (`/browser connect`)
 
